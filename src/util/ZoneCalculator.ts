@@ -15,14 +15,20 @@ export class ZoneCalculator {
 			}
 
 			const leftBorder = [];
-			const borderMap = [];
+			const leftBorderMap = [];
+			const topBorder = [];
+			const topBorderMap = [];
 			for (const tile of zone) {
 				if (!tileMap[tile - 1]) {
 					leftBorder.push(tile);
-					borderMap[tile] = true;
+					leftBorderMap[tile] = true;
+				}
+				if (!tileMap[tile - data.width]) {
+					topBorder.push(tile);
+					topBorderMap[tile] = true;
 				}
 			}
-			result.push({id: data.tiles[zone[0]], tileMap, leftBorder, borderMap});
+			result.push({id: data.tiles[zone[0]], tileMap, leftBorder, leftBorderMap, topBorder, topBorderMap});
 		}
 		return result;
 	}
@@ -105,5 +111,7 @@ export type TileZone = {
 	id: number;
 	tileMap: boolean[];
 	leftBorder: number[];
-	borderMap: boolean[];
+	leftBorderMap: boolean[];
+	topBorder: number[];
+	topBorderMap: boolean[];
 }

@@ -11,15 +11,13 @@ class MapEncoder {
 	 * @param data map data to compress
 	 */
 	writeCompressed(writer: LazyWriter, data: RawMapData): void {
-		writer.writeBits(4, 0); //reserved for future use
+		writer.writeBits(2, 0); //reserved for future use
 		this.width = data.width;
 
 		const zones = ZoneCalculator.buildZones(data);
 
-		const lines: LineData[] = [];
 		const typeMap = [];
 		for (const zone of zones) {
-			lines.push(...this.calculateNeededLines(zone));
 			if (typeMap[zone.id] === undefined) {
 				typeMap[zone.id] = typeMap.length;
 			}
@@ -27,6 +25,10 @@ class MapEncoder {
 
 		const positionLength = Math.ceil(Math.log2(data.width * data.height));
 		const typeLength = Math.ceil(Math.log2(Object.keys(typeMap).length));
+
+		const lines = this.calculateLines(writer, zones, typeLength, positionLength);
+
+		writer.writeBits(1, 0); //reserved for future use
 
 		this.writeTypeMap(writer, typeMap);
 		this.writeLines(writer, lines, typeLength, typeMap, positionLength);
@@ -72,6 +74,45 @@ class MapEncoder {
 	}
 
 	/**
+	 * Calculates lines along the border of each zone
+	 * @param writer writer to use
+	 * @param zones zones to calculate lines for
+	 * @param typeLength length of type ids
+	 * @param positionLength length of position ids
+	 * @returns resulting lines
+	 * @private
+	 */
+	private calculateLines(writer: LazyWriter, zones: TileZone[], typeLength: number, positionLength: number): LineData[] {
+		const linesL2R: LineData[] = [];
+		const linesT2B: LineData[] = [];
+		for (const zone of zones) {
+			linesL2R.push(...this.calculateNeededLines(zone.leftBorder, zone.leftBorderMap, zone.tileMap).map(line => ({id: zone.id, line})));
+			linesT2B.push(...this.calculateNeededLines(zone.topBorder, zone.topBorderMap, zone.tileMap).map(line => ({id: zone.id, line})));
+		}
+
+		const costL2R = this.calculateCost(linesL2R, typeLength, positionLength);
+		const costT2B = this.calculateCost(linesT2B, typeLength, positionLength);
+		writer.writeBoolean(costL2R > costT2B);
+		return costL2R > costT2B ? linesT2B : linesL2R;
+	}
+
+	/**
+	 * Calculates the cost of a set of lines
+	 * @param lines lines to calculate cost for
+	 * @param typeLength length of type ids
+	 * @param positionLength length of position ids
+	 * @returns cost of the lines
+	 * @private
+	 */
+	private calculateCost(lines: LineData[], typeLength: number, positionLength: number): number {
+		let cost = 0;
+		for (const line of lines) {
+			cost += line.line.length * 2 + 10 + typeLength + positionLength;
+		}
+		return cost;
+	}
+
+	/**
 	 * Finds lines along the border of a zone allowing for lossless compression
 	 *
 	 * To allow reconstruction of the map, only certain points on the borders are needed.
@@ -79,16 +120,18 @@ class MapEncoder {
 	 * This greedy algorithm tries to find the shortest possible lines that connect all border points.
 	 * For gaps greater than 8 tiles, multiple lines are used.
 	 *
-	 * @param zone zone to compress
+	 * @param points border points
+	 * @param pointMap map of border points
+	 * @param tileMap map of tiles
 	 * @returns resulting lines
 	 * @private
 	 */
-	private calculateNeededLines(zone: TileZone): LineData[] {
+	private calculateNeededLines(points: number[], pointMap: boolean[], tileMap: boolean[]): number[][] {
 		const segments: number[][] = [];
 		const segmentMap: number[] = [];
 
-		const connectionCount = new Uint8Array(zone.leftBorder.length);
-		const connectionMap = this.calculateConnections(zone);
+		const connectionCount = new Uint8Array(points.length);
+		const connectionMap = this.calculateConnections(points, pointMap, tileMap);
 
 		for (let depth = 0; depth < connectionMap.length; depth++) {
 			for (const connection of connectionMap[depth]) {
@@ -96,7 +139,7 @@ class MapEncoder {
 					continue;
 				}
 
-				MapEncoder.processConnection(!connectionCount[connection.from], !connectionCount[connection.to], connection, segments, zone.leftBorder, segmentMap);
+				MapEncoder.processConnection(!connectionCount[connection.from], !connectionCount[connection.to], connection, segments, points, segmentMap);
 
 				connectionCount[connection.from]++;
 				connectionCount[connection.to]++;
@@ -104,9 +147,9 @@ class MapEncoder {
 		}
 
 		MapEncoder.cropLines(segments);
-		MapEncoder.addSingles(zone.leftBorder, connectionCount, segments);
+		MapEncoder.addSingles(points, connectionCount, segments);
 
-		return segments.filter(segment => segment).map(line => ({id: zone.id, line}));
+		return segments.filter(segment => segment);
 	}
 
 	/**
@@ -222,16 +265,18 @@ class MapEncoder {
 
 	/**
 	 * Calculates all potential connections between border points, at most 8 pixels apart
-	 * @param zone zone to calculate connections for
+	 * @param points border points
+	 * @param pointMap map of border points
+	 * @param tileMap map of tiles
 	 * @returns array of connections, indexed by path length
 	 * @private
 	 */
-	private calculateConnections(zone: TileZone): RawLineData[][] {
+	private calculateConnections(points: number[], pointMap: boolean[], tileMap: boolean[]): RawLineData[][] {
 		const connectionMap = new Array(8).fill(null).map(() => []);
-		for (let i = 0; i < zone.leftBorder.length; i++) {
-			const paths = this.calculatePaths(zone.leftBorder[i], zone.borderMap, zone.tileMap);
+		for (let i = 0; i < points.length; i++) {
+			const paths = this.calculatePaths(points[i], pointMap, tileMap);
 			for (const [point, path] of paths) {
-				const index = zone.leftBorder.indexOf(point);
+				const index = points.indexOf(point);
 				if (index >= i) continue; //only add each connection once
 				connectionMap[path.length].push({from: i, to: index, path});
 			}
@@ -245,12 +290,12 @@ class MapEncoder {
 	 * This is a simple breadth-first search, paths are limited to 8 tiles
 	 *
 	 * @param start starting point
-	 * @param points points to find
+	 * @param pointMap map of border points
 	 * @param tileMap map of tiles
 	 * @returns map of reachable points and their paths
 	 * @private
 	 */
-	private calculatePaths(start: number, points: boolean[], tileMap: boolean[]): Map<number, number[]> {
+	private calculatePaths(start: number, pointMap: boolean[], tileMap: boolean[]): Map<number, number[]> {
 		let open: number[] = [start];
 		let paths: number[][] = [[]];
 		const visited: boolean[] = [];
@@ -259,7 +304,7 @@ class MapEncoder {
 		while (open.length > 0) {
 			const point = open.shift();
 			const path = paths.shift();
-			if (points[point]) {
+			if (pointMap[point]) {
 				result.set(point, path.slice(0, -1));
 			}
 			if (path.length < 8) {

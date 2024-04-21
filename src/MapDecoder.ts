@@ -9,7 +9,10 @@ class MapDecoder {
 	 * @returns decompressed map data
 	 */
 	readCompressed(reader: StreamReader, width: number, height: number): Uint16Array {
-		reader.readBits(4); //reserved for future use
+		reader.readBits(2); //reserved for future use
+		const direction = reader.readBoolean(); //false if left-to-right, true if top-to-bottom
+		reader.readBits(1); //reserved for future use
+
 		const typeMap = this.readTypeMap(reader);
 
 		const positionLength = Math.ceil(Math.log2(width * height));
@@ -18,7 +21,11 @@ class MapDecoder {
 		const result = new Uint16Array(width * height);
 		const valueMap: boolean[] = [];
 		this.putLines(reader, result, valueMap, width, typeLength, typeMap, positionLength);
-		this.fillLines(result, valueMap);
+		if (direction) {
+			this.fillLinesTopToBottom(result, valueMap, width);
+		} else {
+			this.fillLinesLeftToRight(result, valueMap);
+		}
 		return result;
 	}
 
@@ -73,9 +80,26 @@ class MapDecoder {
 	 * @param valueMap map of values that have already been written
 	 * @private
 	 */
-	private fillLines(result: Uint16Array, valueMap: boolean[]) {
+	private fillLinesLeftToRight(result: Uint16Array, valueMap: boolean[]) {
 		let current = 0;
 		for (let i = 0; i < result.length; i++) {
+			if (valueMap[i]) {
+				current = result[i];
+			}
+			result[i] = current;
+		}
+	}
+
+	/**
+	 * Fills in the gaps in the result array
+	 * @param result array to fill
+	 * @param valueMap map of values that have already been written
+	 * @param width map width
+	 * @private
+	 */
+	private fillLinesTopToBottom(result: Uint16Array, valueMap: boolean[], width: number) {
+		let current = 0;
+		for (let i = 0; i < result.length - 1; i = i >= result.length - width ? (i + 1) % width : i + width) {
 			if (valueMap[i]) {
 				current = result[i];
 			}

@@ -17,7 +17,6 @@ export function encodeMap(data: RawMapData): Uint8Array {
 	writer.writeBits(4, CURRENT_VERSION);
 	writer.writeBits(16, data.width);
 	writer.writeBits(16, data.height);
-	console.log(data.width, data.height);
 	mapEncoder.writeCompressed(writer, data);
 
 	return writer.compress();
@@ -38,7 +37,6 @@ export function decodeMap(data: Uint8Array): RawMapData {
 
 	const width = reader.readBits(16);
 	const height = reader.readBits(16);
-	console.log(width, height);
 	const tiles = mapDecoder.readCompressed(reader, width, height);
 
 	return {width, height, tiles};
