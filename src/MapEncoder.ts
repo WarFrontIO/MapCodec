@@ -149,10 +149,9 @@ class MapEncoder {
 		let cost = 0;
 
 		let currentChunk = 0;
-		const positionLength = Math.ceil(Math.log2(32 * 32));
 		for (const line of lines) {
 			const chunk = Math.floor((line.line[0] % this.width) / 32) + Math.floor(Math.floor(line.line[0] / this.width) / 32) * Math.ceil(this.width / 32);
-			cost += (line.line.length - 1) * 2 + 10 + typeLength + positionLength + (chunk - currentChunk);
+			cost += (line.line.length - 1) * 2 + 20 + typeLength + (chunk - currentChunk);
 			currentChunk = chunk;
 		}
 		return cost;
