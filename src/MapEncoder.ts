@@ -257,8 +257,8 @@ class MapEncoder {
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
 			if (line && line.length > 256) {
-				lines[i] = line.slice(0, 64);
-				lines.push(line.slice(64));
+				lines[i] = line.slice(0, 256);
+				lines.push(line.slice(256));
 			}
 		}
 	}
