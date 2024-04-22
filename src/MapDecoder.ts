@@ -15,12 +15,11 @@ class MapDecoder {
 
 		const typeMap = this.readTypeMap(reader);
 
-		const positionLength = Math.ceil(Math.log2(width * height));
 		const typeLength = Math.ceil(Math.log2(typeMap.length));
 
 		const result = new Uint16Array(width * height);
 		const valueMap: boolean[] = [];
-		this.putLines(reader, result, valueMap, width, typeLength, typeMap, positionLength);
+		this.putLines(reader, result, valueMap, width, typeLength, typeMap);
 		if (direction) {
 			this.fillLinesTopToBottom(result, valueMap, width);
 		} else {
@@ -53,16 +52,21 @@ class MapDecoder {
 	 * @param width map width
 	 * @param typeLength length of type ids
 	 * @param typeMap map of zone type ids to game type ids
-	 * @param positionLength length of position ids
 	 * @private
 	 */
-	private putLines(reader: StreamReader, result: Uint16Array, valueMap: boolean[], width: number, typeLength: number, typeMap: number[], positionLength: number) {
+	private putLines(reader: StreamReader, result: Uint16Array, valueMap: boolean[], width: number, typeLength: number, typeMap: number[]) {
 		const lineCount = reader.readBits(32);
+
+		let currentChunk = 0;
 		for (let i = 0; i < lineCount; i++) {
-			reader.readBits(2); //reserved for future use
+			while (reader.readBoolean()) {
+				currentChunk++;
+			}
+			reader.readBits(1); //reserved for future use
 			const length = reader.readBits(8) + 1;
 			const type = typeMap[reader.readBits(typeLength)];
-			let position = reader.readBits(positionLength);
+			let position = reader.readBits(10);
+			position = (position % 32) + (currentChunk % Math.ceil(width / 32)) * 32 + Math.floor(position / 32) * width + Math.floor(currentChunk / Math.ceil(width / 32)) * 32 * width;
 			result[position] = type;
 			valueMap[position] = true;
 			for (let j = 1; j < length; j++) {

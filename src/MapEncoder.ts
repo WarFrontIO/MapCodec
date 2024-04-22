@@ -23,15 +23,14 @@ class MapEncoder {
 			}
 		}
 
-		const positionLength = Math.ceil(Math.log2(data.width * data.height));
 		const typeLength = Math.ceil(Math.log2(Object.keys(typeMap).length));
 
-		const lines = this.calculateLines(writer, zones, typeLength, positionLength);
+		const lines = this.calculateLines(writer, zones, typeLength);
 
 		writer.writeBits(1, 0); //reserved for future use
 
 		this.writeTypeMap(writer, typeMap);
-		this.writeLines(writer, lines, typeLength, typeMap, positionLength);
+		this.writeLines(writer, lines, typeLength, typeMap);
 	}
 
 	/**
@@ -56,16 +55,18 @@ class MapEncoder {
 	 * @param lines map lines to write
 	 * @param typeLength length of type ids
 	 * @param typeMap map of zone type ids to game type ids
-	 * @param positionLength length of position ids
 	 * @private
 	 */
-	private writeLines(writer: LazyWriter, lines: LineData[], typeLength: number, typeMap: any[], positionLength: number) {
+	private writeLines(writer: LazyWriter, lines: LineData[], typeLength: number, typeMap: any[]) {
 		writer.writeBits(32, lines.length);
+
+		let currentChunk = 0;
 		for (const line of lines) {
-			writer.writeBits(2, 0); //reserved for future use
+			currentChunk = this.checkChunk(writer, currentChunk, line.line[0]);
+			writer.writeBits(1, 0); //reserved for future use
 			writer.writeBits(8, line.line.length - 1);
 			writer.writeBits(typeLength, typeMap[line.id]);
-			writer.writeBits(positionLength, line.line[0]);
+			writer.writeBits(10, (line.line[0] % this.width) % 32 + Math.floor(line.line[0] / this.width) % 32 * 32);
 			for (let i = 1; i < line.line.length; i++) {
 				const diff = line.line[i] - line.line[i - 1];
 				writer.writeBits(2, diff === 1 ? 0 : diff === -1 ? 1 : diff === this.width ? 2 : 3);
@@ -74,15 +75,53 @@ class MapEncoder {
 	}
 
 	/**
+	 * Checks if the current chunk needs to be changed
+	 * @param writer writer to use
+	 * @param currentChunk current chunk
+	 * @param position position to check
+	 * @returns new chunk
+	 * @private
+	 */
+	private checkChunk(writer: LazyWriter, currentChunk: number, position: number): number {
+		const chunkX = Math.floor((position % this.width) / 32);
+		const chunkY = Math.floor(Math.floor(position / this.width) / 32);
+		const chunk = chunkY * Math.ceil(this.width / 32) + chunkX;
+		let i = 0;
+		while (chunk !== currentChunk) {
+			writer.writeBits(1, 1);
+			currentChunk++;
+			i++;
+		}
+		writer.writeBits(1, 0);
+		return currentChunk;
+	}
+
+	/**
+	 * Chunks lines into 16x16 blocks
+	 * @param lines lines to chunk
+	 * @private
+	 */
+	private chunkLines(lines: LineData[]) {
+		const chunkWidth = Math.ceil(this.width / 32);
+		const chunkMap: number[] = [];
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i];
+			const chunkX = Math.floor((line.line[0] % this.width) / 32);
+			const chunkY = Math.floor(Math.floor(line.line[0] / this.width) / 32);
+			chunkMap[i] = chunkY * chunkWidth + chunkX;
+		}
+		lines.sort((a, b) => chunkMap[lines.indexOf(a)] - chunkMap[lines.indexOf(b)]);
+	}
+
+	/**
 	 * Calculates lines along the border of each zone
 	 * @param writer writer to use
 	 * @param zones zones to calculate lines for
 	 * @param typeLength length of type ids
-	 * @param positionLength length of position ids
 	 * @returns resulting lines
 	 * @private
 	 */
-	private calculateLines(writer: LazyWriter, zones: TileZone[], typeLength: number, positionLength: number): LineData[] {
+	private calculateLines(writer: LazyWriter, zones: TileZone[], typeLength: number): LineData[] {
 		const linesL2R: LineData[] = [];
 		const linesT2B: LineData[] = [];
 		for (const zone of zones) {
@@ -90,8 +129,11 @@ class MapEncoder {
 			linesT2B.push(...this.calculateNeededLines(zone.topBorder, zone.topBorderMap, zone.tileMap).map(line => ({id: zone.id, line})));
 		}
 
-		const costL2R = this.calculateCost(linesL2R, typeLength, positionLength);
-		const costT2B = this.calculateCost(linesT2B, typeLength, positionLength);
+		this.chunkLines(linesL2R);
+		this.chunkLines(linesT2B);
+
+		const costL2R = this.calculateCost(linesL2R, typeLength);
+		const costT2B = this.calculateCost(linesT2B, typeLength);
 		writer.writeBoolean(costL2R > costT2B);
 		return costL2R > costT2B ? linesT2B : linesL2R;
 	}
@@ -100,14 +142,18 @@ class MapEncoder {
 	 * Calculates the cost of a set of lines
 	 * @param lines lines to calculate cost for
 	 * @param typeLength length of type ids
-	 * @param positionLength length of position ids
 	 * @returns cost of the lines
 	 * @private
 	 */
-	private calculateCost(lines: LineData[], typeLength: number, positionLength: number): number {
+	private calculateCost(lines: LineData[], typeLength: number): number {
 		let cost = 0;
+
+		let currentChunk = 0;
+		const positionLength = Math.ceil(Math.log2(32 * 32));
 		for (const line of lines) {
-			cost += line.line.length * 2 + 10 + typeLength + positionLength;
+			const chunk = Math.floor((line.line[0] % this.width) / 32) + Math.floor(Math.floor(line.line[0] / this.width) / 32) * Math.ceil(this.width / 32);
+			cost += (line.line.length - 1) * 2 + 10 + typeLength + positionLength + (chunk - currentChunk);
+			currentChunk = chunk;
 		}
 		return cost;
 	}
