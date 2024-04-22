@@ -139,7 +139,9 @@ class MapEncoder {
 					continue;
 				}
 
-				MapEncoder.processConnection(!connectionCount[connection.from], !connectionCount[connection.to], connection, segments, points, segmentMap);
+				if (!MapEncoder.processConnection(!connectionCount[connection.from], !connectionCount[connection.to], connection, segments, points, segmentMap)) {
+					continue;
+				}
 
 				connectionCount[connection.from]++;
 				connectionCount[connection.to]++;
@@ -160,34 +162,38 @@ class MapEncoder {
 	 * @param segments lines to add to
 	 * @param border border points
 	 * @param segmentMap map of border points to segments
+	 * @returns whether the segments were connected
 	 * @private
 	 */
-	private static processConnection(fromIsNew: boolean, toIsNew: boolean, connection: RawLineData, segments: number[][], border: number[], segmentMap: number[]) {
+	private static processConnection(fromIsNew: boolean, toIsNew: boolean, connection: RawLineData, segments: number[][], border: number[], segmentMap: number[]): boolean {
 		const valueFrom = border[connection.from];
 		const valueTo = border[connection.to];
 		if (fromIsNew && toIsNew) {
 			segments.push([valueFrom, ...connection.path, valueTo]);
 			segmentMap[connection.from] = segmentMap[connection.to] = segments.length - 1;
-			return;
+			return true;
 		}
 
 		if (fromIsNew) {
 			MapEncoder.concatSegment(segments[segmentMap[connection.to]], connection.path, valueTo, valueFrom);
 			segmentMap[connection.from] = segmentMap[connection.to];
-			return;
+			return true;
 		}
 
 		if (toIsNew) {
 			MapEncoder.concatSegment(segments[segmentMap[connection.from]], connection.path.reverse(), valueFrom, valueTo);
 			segmentMap[connection.to] = segmentMap[connection.from];
-			return;
+			return true;
 		}
 
 		if (segmentMap[connection.from] !== segmentMap[connection.to]) {
 			const start = MapEncoder.connectSegments(segments[segmentMap[connection.from]], segments[segmentMap[connection.to]], valueFrom, valueTo, connection.path);
 			delete segments[segmentMap[connection.from]];
 			segmentMap[border.indexOf(start)] = segmentMap[connection.to];
+			return true;
 		}
+
+		return false;
 	}
 
 	/**
