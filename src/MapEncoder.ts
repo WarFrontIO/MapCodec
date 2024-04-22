@@ -97,7 +97,7 @@ class MapEncoder {
 	}
 
 	/**
-	 * Chunks lines into 16x16 blocks
+	 * Chunks lines into 32x32 blocks
 	 * @param lines lines to chunk
 	 * @private
 	 */
