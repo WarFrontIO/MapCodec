@@ -19,6 +19,8 @@ export function encodeMap(data: RawMapData): Uint8Array {
 	writer.writeBits(16, data.height);
 	mapEncoder.writeCompressed(writer, data);
 
+	writer.writeBits(8, 0); // reserved for future use
+
 	return writer.compress();
 }
 
@@ -38,6 +40,8 @@ export function decodeMap(data: Uint8Array): RawMapData {
 	const width = reader.readBits(16);
 	const height = reader.readBits(16);
 	const tiles = mapDecoder.readCompressed(reader, width, height);
+
+	reader.readBits(8); // reserved for future use
 
 	return {width, height, tiles};
 }

@@ -9,7 +9,7 @@ class MapDecoder {
 	 * @returns decompressed map data
 	 */
 	readCompressed(reader: StreamReader, width: number, height: number): Uint16Array {
-		reader.readBits(2); //reserved for future use
+		reader.readBits(8); //reserved for future use
 		const direction = reader.readBoolean(); //false if left-to-right, true if top-to-bottom
 		reader.readBits(1); //reserved for future use
 

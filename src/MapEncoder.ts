@@ -11,7 +11,7 @@ class MapEncoder {
 	 * @param data map data to compress
 	 */
 	writeCompressed(writer: LazyWriter, data: RawMapData): void {
-		writer.writeBits(2, 0); //reserved for future use
+		writer.writeBits(8, 0); //reserved for future use
 		this.width = data.width;
 
 		const zones = ZoneCalculator.buildZones(data);
