@@ -17,9 +17,10 @@ class MapEncoder {
 		const zones = ZoneCalculator.buildZones(data);
 
 		const typeMap = [];
+		let nextTypeId = 0;
 		for (const zone of zones) {
 			if (typeMap[zone.id] === undefined) {
-				typeMap[zone.id] = typeMap.length;
+				typeMap[zone.id] = nextTypeId++;
 			}
 		}
 
