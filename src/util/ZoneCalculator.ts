@@ -44,12 +44,12 @@ export class ZoneCalculator {
 		const zoneCache = new Uint16Array(data.width); // one row of cache is enough
 
 		for (let i = 0; i < data.tiles.length; i++) {
-			let id = ZoneCalculator.findZone(i, data.tiles, data.width, zoneCache, zoneTiles);
+			const id = ZoneCalculator.findZone(i, data.tiles, data.width, zoneCache, zoneTiles);
 			zoneCache[i % data.width] = id;
 			zoneTiles[id].push(i);
 		}
 
-		return zoneTiles.filter(zone => zone);
+		return zoneTiles.filter(zone => zone.length > 0);
 	}
 
 	/**
@@ -98,7 +98,7 @@ export class ZoneCalculator {
 			[into, from] = [from, into];
 		}
 		zoneTiles[into].push(...zoneTiles[from]);
-		delete zoneTiles[from];
+		zoneTiles[from] = [];
 		zoneCache.forEach((value, index) => {
 			if (value === from) zoneCache[index] = into;
 		});

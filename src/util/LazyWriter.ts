@@ -2,7 +2,7 @@ export class LazyWriter {
 	private length: number = 0;
 	private data: (() => void)[] = [];
 	private offset: number = 0;
-	private buffer = null;
+	private buffer: Uint8Array;
 
 	/**
 	 * Warning: JavaScript bitwise operations are limited to 32 bits
@@ -19,10 +19,10 @@ export class LazyWriter {
 	 * Queues a number of bits to be written to the buffer
 	 * @param length number of bits to write, must be less than or equal to 32
 	 * @param value value to write, only the lowest length bits will be written
-	 * @throws if length is greater than 32
+	 * @throws Error if length is greater than 32
 	 */
 	writeBits(length: number, value: number) {
-		if (length > 32) throw "Cannot write more than 32 bits at a time";
+		if (length > 32) throw new Error("Cannot write more than 32 bits at a time");
 		this.data.push(() => {
 			this.actuallyWriteBits(length, value);
 		});

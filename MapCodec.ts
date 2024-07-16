@@ -34,7 +34,7 @@ export function decodeMap(data: Uint8Array): RawMapData {
 
 	const version = reader.readBits(4);
 	if (version !== CURRENT_VERSION) {
-		throw `Unsupported map version: ${version}`;
+		throw new Error(`Unsupported map version: ${version}`);
 	}
 
 	const width = reader.readBits(16);

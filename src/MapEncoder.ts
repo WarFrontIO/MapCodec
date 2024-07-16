@@ -16,7 +16,7 @@ class MapEncoder {
 
 		const zones = ZoneCalculator.buildZones(data);
 
-		const typeMap = [];
+		const typeMap: number[] = [];
 		let nextTypeId = 0;
 		for (const zone of zones) {
 			if (typeMap[zone.id] === undefined) {
@@ -40,7 +40,7 @@ class MapEncoder {
 	 * @param typeMap map of zone type ids to game type ids
 	 * @private
 	 */
-	private writeTypeMap(writer: LazyWriter, typeMap: any[]) {
+	private writeTypeMap(writer: LazyWriter, typeMap: number[]) {
 		const typeMapLength = Object.keys(typeMap).length;
 		writer.writeBits(16, typeMapLength);
 		for (let i = 0; i < typeMapLength; i++) {
@@ -58,7 +58,7 @@ class MapEncoder {
 	 * @param typeMap map of zone type ids to game type ids
 	 * @private
 	 */
-	private writeLines(writer: LazyWriter, lines: LineData[], typeLength: number, typeMap: any[]) {
+	private writeLines(writer: LazyWriter, lines: LineData[], typeLength: number, typeMap: number[]) {
 		writer.writeBits(32, lines.length);
 
 		let currentChunk = 0;
@@ -87,11 +87,9 @@ class MapEncoder {
 		const chunkX = Math.floor((position % this.width) / 32);
 		const chunkY = Math.floor(Math.floor(position / this.width) / 32);
 		const chunk = chunkY * Math.ceil(this.width / 32) + chunkX;
-		let i = 0;
 		while (chunk !== currentChunk) {
 			writer.writeBits(1, 1);
 			currentChunk++;
-			i++;
 		}
 		writer.writeBits(1, 0);
 		return currentChunk;
@@ -197,7 +195,7 @@ class MapEncoder {
 		MapEncoder.cropLines(segments);
 		MapEncoder.addSingles(points, connectionCount, segments);
 
-		return segments.filter(segment => segment);
+		return segments.filter(segment => segment.length > 0);
 	}
 
 	/**
@@ -234,7 +232,7 @@ class MapEncoder {
 
 		if (segmentMap[connection.from] !== segmentMap[connection.to]) {
 			const start = MapEncoder.connectSegments(segments[segmentMap[connection.from]], segments[segmentMap[connection.to]], valueFrom, valueTo, connection.path);
-			delete segments[segmentMap[connection.from]];
+			segments[segmentMap[connection.from]] = [];
 			segmentMap[border.indexOf(start)] = segmentMap[connection.to];
 			return true;
 		}
@@ -324,7 +322,7 @@ class MapEncoder {
 	 * @private
 	 */
 	private calculateConnections(points: number[], pointMap: boolean[], tileMap: boolean[]): RawLineData[][] {
-		const connectionMap = new Array(8).fill(null).map(() => []);
+		const connectionMap: RawLineData[][] = new Array(8).fill(null).map(() => []);
 		for (let i = 0; i < points.length; i++) {
 			const paths = this.calculatePaths(points[i], pointMap, tileMap);
 			for (const [point, path] of paths) {
@@ -348,14 +346,14 @@ class MapEncoder {
 	 * @private
 	 */
 	private calculatePaths(start: number, pointMap: boolean[], tileMap: boolean[]): Map<number, number[]> {
-		let open: number[] = [start];
-		let paths: number[][] = [[]];
+		const open: number[] = [start];
+		const paths: number[][] = [[]];
 		const visited: boolean[] = [];
 		visited[start] = true;
 		const result: Map<number, number[]> = new Map();
 		while (open.length > 0) {
-			const point = open.shift();
-			const path = paths.shift();
+			const point = open.shift() as number;
+			const path = paths.shift() as number[];
 			if (pointMap[point]) {
 				result.set(point, path.slice(0, -1));
 			}

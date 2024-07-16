@@ -14,11 +14,11 @@ export class StreamReader {
 	 * Reads a number of bits from the buffer
 	 * @param length number of bits to read, must be less than or equal to 32
 	 * @returns number of value read
-	 * @throws if length is greater than 32 or there is not enough data to read
+	 * @throws Error if length is greater than 32 or there is not enough data to read
 	 */
 	readBits(length: number): number {
-		if (length > 32) throw "Cannot read more than 32 bits at a time";
-		if (this.offset + length > this.buffer.length * 8) throw "Not enough data to read";
+		if (length > 32) throw new Error("Cannot read more than 32 bits at a time");
+		if (this.offset + length > this.buffer.length * 8) throw new Error("Not enough data to read");
 
 		let value = 0;
 		for (let i = this.offset; i < this.offset + length; i++) {
