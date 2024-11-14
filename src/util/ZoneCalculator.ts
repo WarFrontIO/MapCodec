@@ -97,7 +97,7 @@ export class ZoneCalculator {
 		if (zoneTiles[into].length < zoneTiles[from].length) {
 			[into, from] = [from, into];
 		}
-		zoneTiles[into].push(...zoneTiles[from]);
+		zoneTiles[from].forEach(tile => zoneTiles[into].push(tile));
 		zoneTiles[from] = [];
 		zoneCache.forEach((value, index) => {
 			if (value === from) zoneCache[index] = into;
