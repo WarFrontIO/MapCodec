@@ -1,4 +1,5 @@
 import {StreamReader} from "./util/StreamReader";
+import {RawMapData, TileType} from "../MapCodec";
 
 class MapDecoder {
 	/**
@@ -8,40 +9,48 @@ class MapDecoder {
 	 * @param height map height
 	 * @returns decompressed map data
 	 */
-	readCompressed(reader: StreamReader, width: number, height: number): Uint16Array {
+	readCompressed(reader: StreamReader, width: number, height: number): RawMapData {
 		reader.readBits(8); //reserved for future use
 		const direction = reader.readBoolean(); //false if left-to-right, true if top-to-bottom
 		reader.readBits(1); //reserved for future use
 
-		const typeMap = this.readTypeMap(reader);
+		const tileTypes = this.readTypeMap(reader);
 
-		const typeLength = Math.ceil(Math.log2(typeMap.length));
+		const typeLength = Math.ceil(Math.log2(tileTypes.length));
 
 		const result = new Uint16Array(width * height);
 		const valueMap: boolean[] = [];
-		this.putLines(reader, result, valueMap, width, typeLength, typeMap);
+		this.putLines(reader, result, valueMap, width, typeLength);
 		if (direction) {
 			this.fillLinesTopToBottom(result, valueMap, width);
 		} else {
 			this.fillLinesLeftToRight(result, valueMap);
 		}
-		return result;
+		return {width, height, tiles: result, types: tileTypes};
 	}
 
 	/**
 	 * Reads the type map
 	 * @param reader reader to use
-	 * @returns type map
+	 * @returns list of tile types
 	 * @private
 	 */
-	private readTypeMap(reader: StreamReader): number[] {
+	private readTypeMap(reader: StreamReader): TileType[] {
 		const typeMapLength = reader.readBits(16);
-		const typeMap = [];
+		const types = [];
 		for (let i = 0; i < typeMapLength; i++) {
 			reader.readBits(3); //reserved for future use
-			typeMap.push(reader.readBits(16));
+			types.push({
+				name: reader.readString(32),
+				colorBase: reader.readString(16),
+				colorVariant: reader.readBits(4),
+				conquerable: reader.readBoolean(),
+				navigable: reader.readBoolean(),
+				expansionTime: reader.readBits(8),
+				expansionCost: reader.readBits(8)
+			});
 		}
-		return typeMap;
+		return types;
 	}
 
 	/**
@@ -51,10 +60,9 @@ class MapDecoder {
 	 * @param valueMap map of values that have already been written
 	 * @param width map width
 	 * @param typeLength length of type ids
-	 * @param typeMap map of zone type ids to game type ids
 	 * @private
 	 */
-	private putLines(reader: StreamReader, result: Uint16Array, valueMap: boolean[], width: number, typeLength: number, typeMap: number[]) {
+	private putLines(reader: StreamReader, result: Uint16Array, valueMap: boolean[], width: number, typeLength: number) {
 		const lineCount = reader.readBits(32);
 
 		let currentChunk = 0;
@@ -64,7 +72,7 @@ class MapDecoder {
 			}
 			reader.readBits(1); //reserved for future use
 			const length = reader.readBits(8) + 1;
-			const type = typeMap[reader.readBits(typeLength)];
+			const type = reader.readBits(typeLength);
 			let position = reader.readBits(10);
 			position = (position % 32) + (currentChunk % Math.ceil(width / 32)) * 32 + Math.floor(position / 32) * width + Math.floor(currentChunk / Math.ceil(width / 32)) * 32 * width;
 			result[position] = type;

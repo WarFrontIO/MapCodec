@@ -1,0 +1,1 @@
+export class CodecException extends Error {}

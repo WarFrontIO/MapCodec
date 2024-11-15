@@ -40,11 +40,11 @@ export function decodeMap(data: Uint8Array): RawMapData {
 
 	const width = reader.readBits(16);
 	const height = reader.readBits(16);
-	const tiles = mapDecoder.readCompressed(reader, width, height);
+	const result = mapDecoder.readCompressed(reader, width, height);
 
 	reader.readBits(8); // reserved for future use
 
-	return {width, height, tiles};
+	return result;
 }
 
 export interface RawMapData {
@@ -52,4 +52,25 @@ export interface RawMapData {
 	height: number;
 	/** 1D array of tile types */
 	tiles: Uint16Array;
+	/** List of tile types, index = value in tile map */
+	types: TileType[];
+}
+
+export interface TileType {
+	/** Max 32 characters */
+	name: string;
+	/**
+	 * Tile base color id, max 16 characters
+	 */
+	colorBase: string;
+	/**
+	 * Tile variant id, 0-15
+	 */
+	colorVariant: number;
+	conquerable: boolean;
+	navigable: boolean;
+	/** The relative time it takes to expand the tile, 0-255 higher meaning slower, 50 being the default */
+	expansionTime: number;
+	/** The relative cost to expand the tile, 0-255 higher meaning more expensive, 50 being the default */
+	expansionCost: number;
 }

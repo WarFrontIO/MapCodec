@@ -1,6 +1,7 @@
-import {RawMapData} from "../MapCodec";
+import {RawMapData, TileType} from "../MapCodec";
 import {LazyWriter} from "./util/LazyWriter";
 import {TileZone, ZoneCalculator} from "./util/ZoneCalculator";
+import {CodecException} from "./util/CodecException";
 
 class MapEncoder {
 	width: number = 0;
@@ -9,6 +10,7 @@ class MapEncoder {
 	 * Writes compressed map data to a writer
 	 * @param writer writer to use
 	 * @param data map data to compress
+	 * @throws CodecException if map couldn't be compressed
 	 */
 	writeCompressed(writer: LazyWriter, data: RawMapData): void {
 		writer.writeBits(8, 0); //reserved for future use
@@ -16,22 +18,15 @@ class MapEncoder {
 
 		const zones = ZoneCalculator.buildZones(data);
 
-		const typeMap: number[] = [];
-		let nextTypeId = 0;
-		for (const zone of zones) {
-			if (typeMap[zone.id] === undefined) {
-				typeMap[zone.id] = nextTypeId++;
-			}
-		}
-
-		const typeLength = Math.ceil(Math.log2(Object.keys(typeMap).length));
+		const types = this.validateTileTypeUsage(data.types, zones);
+		const typeLength = Math.ceil(Math.log2(types.length));
 
 		const lines = this.calculateLines(writer, zones, typeLength);
 
 		writer.writeBits(1, 0); //reserved for future use
 
-		this.writeTypeMap(writer, typeMap);
-		this.writeLines(writer, lines, typeLength, typeMap);
+		this.writeTypeMap(writer, data.types);
+		this.writeLines(writer, lines, typeLength);
 	}
 
 	/**
@@ -40,13 +35,17 @@ class MapEncoder {
 	 * @param typeMap map of zone type ids to game type ids
 	 * @private
 	 */
-	private writeTypeMap(writer: LazyWriter, typeMap: number[]) {
-		const typeMapLength = Object.keys(typeMap).length;
-		writer.writeBits(16, typeMapLength);
-		for (let i = 0; i < typeMapLength; i++) {
+	private writeTypeMap(writer: LazyWriter, typeMap: TileType[]) {
+		writer.writeBits(16, typeMap.length);
+		for (let i = 0; i < typeMap.length; i++) {
 			writer.writeBits(3, 0); //reserved for future use
-			writer.writeBits(16, typeMap.indexOf(i));
-			//TODO: rgb + extra data
+			writer.writeString(32, typeMap[i].name);
+			writer.writeString(16, typeMap[i].colorBase);
+			writer.writeBits(4, typeMap[i].colorVariant);
+			writer.writeBoolean(typeMap[i].conquerable);
+			writer.writeBoolean(typeMap[i].navigable);
+			writer.writeBits(8, typeMap[i].expansionTime);
+			writer.writeBits(8, typeMap[i].expansionCost);
 		}
 	}
 
@@ -55,10 +54,9 @@ class MapEncoder {
 	 * @param writer writer to use
 	 * @param lines map lines to write
 	 * @param typeLength length of type ids
-	 * @param typeMap map of zone type ids to game type ids
 	 * @private
 	 */
-	private writeLines(writer: LazyWriter, lines: LineData[], typeLength: number, typeMap: number[]) {
+	private writeLines(writer: LazyWriter, lines: LineData[], typeLength: number) {
 		writer.writeBits(32, lines.length);
 
 		let currentChunk = 0;
@@ -66,7 +64,7 @@ class MapEncoder {
 			currentChunk = this.checkChunk(writer, currentChunk, line.line[0]);
 			writer.writeBits(1, 0); //reserved for future use
 			writer.writeBits(8, line.line.length - 1);
-			writer.writeBits(typeLength, typeMap[line.id]);
+			writer.writeBits(typeLength, line.id);
 			writer.writeBits(10, (line.line[0] % this.width) % 32 + Math.floor(line.line[0] / this.width) % 32 * 32);
 			for (let i = 1; i < line.line.length; i++) {
 				const diff = line.line[i] - line.line[i - 1];
@@ -93,6 +91,32 @@ class MapEncoder {
 		}
 		writer.writeBits(1, 0);
 		return currentChunk;
+	}
+
+	/**
+	 * Validates that all and only known tile types are used in the map
+	 * @param types tile types to validate
+	 * @param zones zones to validate
+	 * @returns list of used tile types
+	 * @private
+	 */
+	private validateTileTypeUsage(types: TileType[], zones: TileZone[]) : TileType[] {
+		const tileUsage: TileZone[][] = Array(types.length).fill(null).map(() => []);
+		for (const zone of zones) {
+			if (!types[zone.id]) {
+				throw new CodecException(`Unknown tile type: ${zone.id}. Not specified in type map`);
+			}
+			tileUsage[zone.id].push(zone);
+		}
+
+		const usedTypes = [];
+		for (let i = 0; i < types.length; i++) {
+			if (tileUsage[i].length > 0) {
+				usedTypes.push(types[i]);
+				tileUsage[i].forEach(zone => zone.id = usedTypes.length - 1);
+			}
+		}
+		return usedTypes;
 	}
 
 	/**
