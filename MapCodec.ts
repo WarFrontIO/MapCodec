@@ -5,6 +5,7 @@ import {mapDecoder} from "./src/MapDecoder";
 
 // Only bump this for breaking changes, decompression should always be backwards compatible
 const CURRENT_VERSION = 0;
+const MINIMUM_VERSION = 0;
 
 /**
  * Compresses map data
@@ -33,7 +34,7 @@ export function decodeMap(data: Uint8Array): RawMapData {
 	const reader = new StreamReader(data);
 
 	const version = reader.readBits(4);
-	if (version !== CURRENT_VERSION) {
+	if (version > CURRENT_VERSION || version < MINIMUM_VERSION) {
 		throw new Error(`Unsupported map version: ${version}`);
 	}
 
