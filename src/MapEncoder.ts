@@ -148,8 +148,8 @@ class MapEncoder {
 		const linesL2R: LineData[] = [];
 		const linesT2B: LineData[] = [];
 		for (const zone of zones) {
-			linesL2R.push(...this.calculateNeededLines(zone.leftBorder, zone.leftBorderMap, zone.tileMap).map(line => ({id: zone.id, line})));
-			linesT2B.push(...this.calculateNeededLines(zone.topBorder, zone.topBorderMap, zone.tileMap).map(line => ({id: zone.id, line})));
+			linesL2R.push(...this.calculateNeededLines(zone.leftBorder, zone.leftBorderMap, zone.id, zone.tileMap).map(line => ({id: zone.id, line})));
+			linesT2B.push(...this.calculateNeededLines(zone.topBorder, zone.topBorderMap, zone.id, zone.tileMap).map(line => ({id: zone.id, line})));
 		}
 
 		this.chunkLines(linesL2R);
@@ -190,16 +190,17 @@ class MapEncoder {
 	 *
 	 * @param points border points
 	 * @param pointMap map of border points
+	 * @param zoneId id of the zone
 	 * @param tileMap map of tiles
 	 * @returns resulting lines
 	 * @private
 	 */
-	private calculateNeededLines(points: number[], pointMap: boolean[], tileMap: boolean[]): number[][] {
+	private calculateNeededLines(points: number[], pointMap: boolean[], zoneId: number, tileMap: Uint16Array): number[][] {
 		const segments: number[][] = [];
 		const segmentMap: number[] = [];
 
 		const connectionCount = new Uint8Array(points.length);
-		const connectionMap = this.calculateConnections(points, pointMap, tileMap);
+		const connectionMap = this.calculateConnections(points, pointMap, zoneId, tileMap);
 
 		for (let depth = 0; depth < connectionMap.length; depth++) {
 			for (const connection of connectionMap[depth]) {
@@ -341,14 +342,15 @@ class MapEncoder {
 	 * Calculates all potential connections between border points, at most 8 pixels apart
 	 * @param points border points
 	 * @param pointMap map of border points
+	 * @param zoneId id of the zone
 	 * @param tileMap map of tiles
 	 * @returns array of connections, indexed by path length
 	 * @private
 	 */
-	private calculateConnections(points: number[], pointMap: boolean[], tileMap: boolean[]): RawLineData[][] {
+	private calculateConnections(points: number[], pointMap: boolean[], zoneId: number, tileMap: Uint16Array): RawLineData[][] {
 		const connectionMap: RawLineData[][] = new Array(8).fill(null).map(() => []);
 		for (let i = 0; i < points.length; i++) {
-			const paths = this.calculatePaths(points[i], pointMap, tileMap);
+			const paths = this.calculatePaths(points[i], pointMap, zoneId, tileMap);
 			for (const [point, path] of paths) {
 				const index = points.indexOf(point);
 				if (index >= i) continue; //only add each connection once
@@ -365,11 +367,12 @@ class MapEncoder {
 	 *
 	 * @param start starting point
 	 * @param pointMap map of border points
+	 * @param zoneId id of the zone
 	 * @param tileMap map of tiles
 	 * @returns map of reachable points and their paths
 	 * @private
 	 */
-	private calculatePaths(start: number, pointMap: boolean[], tileMap: boolean[]): Map<number, number[]> {
+	private calculatePaths(start: number, pointMap: boolean[], zoneId: number, tileMap: Uint16Array): Map<number, number[]> {
 		const open: number[] = [start];
 		const paths: number[][] = [[]];
 		const visited: boolean[] = [];
@@ -383,7 +386,7 @@ class MapEncoder {
 			}
 			if (path.length < 8) {
 				for (const nextPoint of [point - 1, point + 1, point - this.width, point + this.width]) {
-					if (!visited[nextPoint] && tileMap[nextPoint]) {
+					if (!visited[nextPoint] && tileMap[nextPoint] === zoneId) {
 						open.push(nextPoint);
 						paths.push([...path, nextPoint]);
 						visited[nextPoint] = true;
