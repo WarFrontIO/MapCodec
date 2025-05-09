@@ -147,9 +147,10 @@ class MapEncoder {
 	private calculateLines(writer: LazyWriter, zones: TileZone[], typeLength: number): LineData[] {
 		const linesL2R: LineData[] = [];
 		const linesT2B: LineData[] = [];
-		for (const zone of zones) {
-			linesL2R.push(...this.calculateNeededLines(zone.leftBorder, zone.leftBorderMap, zone.id, zone.tileMap).map(line => ({id: zone.id, line})));
-			linesT2B.push(...this.calculateNeededLines(zone.topBorder, zone.topBorderMap, zone.id, zone.tileMap).map(line => ({id: zone.id, line})));
+		for (let zoneId = 0; zoneId < zones.length; zoneId++) {
+			const zone = zones[zoneId];
+			linesL2R.push(...this.calculateNeededLines(zone.leftBorder, zone.leftBorderMap, zoneId + 1, zone.tileMap).map(line => ({id: zone.id, line})));
+			linesT2B.push(...this.calculateNeededLines(zone.topBorder, zone.topBorderMap, zoneId + 1, zone.tileMap).map(line => ({id: zone.id, line})));
 		}
 
 		this.chunkLines(linesL2R);
