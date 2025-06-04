@@ -1,5 +1,5 @@
-import {StreamReader} from "./util/StreamReader";
-import {RawMapData, TileType} from "../MapCodec";
+import type {StreamReader} from "./util/StreamReader";
+import type {RawMapData, TileType} from "../MapCodec";
 
 class MapDecoder {
 	/**

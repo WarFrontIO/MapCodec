@@ -1,4 +1,4 @@
-import {RawMapData} from "../../MapCodec";
+import type {RawMapData} from "../../MapCodec";
 
 export class ZoneCalculator {
 	/**

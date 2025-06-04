@@ -1,6 +1,7 @@
-import {RawMapData, TileType} from "../MapCodec";
-import {LazyWriter} from "./util/LazyWriter";
-import {TileZone, ZoneCalculator} from "./util/ZoneCalculator";
+import type {RawMapData, TileType} from "../MapCodec";
+import type {LazyWriter} from "./util/LazyWriter";
+import type {TileZone} from "./util/ZoneCalculator";
+import {ZoneCalculator} from "./util/ZoneCalculator";
 import {CodecException} from "./util/CodecException";
 
 class MapEncoder {
@@ -100,7 +101,7 @@ class MapEncoder {
 	 * @returns list of used tile types
 	 * @private
 	 */
-	private validateTileTypeUsage(types: TileType[], zones: TileZone[]) : TileType[] {
+	private validateTileTypeUsage(types: TileType[], zones: TileZone[]): TileType[] {
 		const tileUsage: TileZone[][] = Array(types.length).fill(null).map(() => []);
 		for (const zone of zones) {
 			if (!types[zone.id]) {
